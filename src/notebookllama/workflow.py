@@ -1,5 +1,5 @@
 import json
-
+from mcp.shared.exceptions import McpError
 from workflows import Workflow, step, Context
 from workflows.events import StartEvent, StopEvent, Event
 from workflows.resource import Resource
@@ -45,9 +45,28 @@ class NotebookLMWorkflow(Workflow):
         ctx.write_event_to_stream(
             ev=ev,
         )
-        result = await mcp_client.call_tool(
-            tool_name="process_file_tool", arguments={"filename": ev.file}
-        )
+        try:
+            result = await mcp_client.call_tool(
+                tool_name="process_file_tool", arguments={"filename": ev.file}
+            )
+        except McpError as e:
+            return NotebookOutputEvent(
+                mind_map=f"Processing failed: {str(e)}",
+                md_content="",
+                summary="",
+                highlights=[],
+                questions=[],
+                answers=[],
+            )
+        if "\n%separator%\n" not in result.content[0].text:
+            return NotebookOutputEvent(
+                mind_map="Unprocessable file, sorry😭",
+                md_content="",
+                summary="",
+                highlights=[],
+                questions=[],
+                answers=[],
+            )
         split_result = result.content[0].text.split("\n%separator%\n")
         json_data = split_result[0]
         md_text = split_result[1]
